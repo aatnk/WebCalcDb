@@ -22,4 +22,6 @@ namespace WebCalcDb
 				.UseStartup<Startup>()
 				.Build();
 	}
+	// Настройка модулей форматирования: https://docs.microsoft.com/ru-ru/aspnet/core/web-api/advanced/formatting?view=aspnetcore-2.1
+
 }

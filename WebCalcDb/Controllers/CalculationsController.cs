@@ -183,6 +183,55 @@ namespace WebCalcDb.Controllers
 		http://localhost:14590/Values?operator=1&operator=2&operator=3
 		http://localhost:14590/api/values?operator=1&operator=2&operator=3
 		http://localhost:14590/api/AABBCC
+
+
+		http://localhost:14590/calculations
+		http://localhost:14590/calculations?operator=3
+		http://localhost:14590/calculations?operator=1&operator=2&operator=3
+		http://localhost:14590/calculations?operator=1&operator=2&operator=3&range=2&offset=3
+		http://localhost:14590/calculations?operator=1&operator=2&operator=3&range=3&offset=-3
+
+filtered	
+0	
+operand1	3.25
+operand2	1
+operator	1
+result	4.25
+1	
+operand1	3.25
+operand2	1
+operator	1
+result	4.25
+2	
+operand1	3.25
+operand2	1
+operator	1
+result	4.25
+3	
+operand1	3.25
+operand2	1
+operator	1
+result	4.25
+4	
+operand1	3.25
+operand2	1
+operator	2
+result	2.25
+5	
+operand1	3.25
+operand2	1
+operator	3
+result	3.25
+6	
+operand1	3.25
+operand2	1
+operator	4
+result	3.25
+7	
+operand1	3.25
+operand2	1
+operator	5
+result	"NaN"
 	*/
 
 	[Route("api/[controller]")]

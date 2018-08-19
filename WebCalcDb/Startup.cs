@@ -9,6 +9,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+// requires 
+// using RazorPagesMovie.Models;
+using Microsoft.EntityFrameworkCore;
+
 namespace WebCalcDb
 {
 	public class Startup
@@ -23,6 +27,8 @@ namespace WebCalcDb
 		// This method gets called by the runtime. Use this method to add services to the container.
 		public void ConfigureServices(IServiceCollection services)
 		{
+			services.AddDbContext<MovieContext>(options =>
+				options.UseSqlServer(Configuration.GetConnectionString("MovieContext")));
 			services.AddMvc();
 		}
 

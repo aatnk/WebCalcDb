@@ -3,18 +3,42 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace WebCalcDb.Controllers
 {
-	[Route("api/values")]
+	// [Route("api/calculations")]
 	[Route("[controller]")]
 	public class CalculationsController : Controller
 	{
-		COperation m_op = new COperation();
+
+		//// (!!) Доступ к зависимым инъецированным службам в MVC 6
+		//// http://qaru.site/questions/2222129/accessing-dependency-injected-services-in-mvc-6
+		//// Инъекция зависимостей с классами, отличными от класса контроллера
+		//// http://askdev.info/questions/635074/dependency-injection-with-classes-other-than-a-controller-class
+		//private readonly IConfiguration _oCfg;
+		//public CalculationsController(IServiceCollection services)
+		//{
+		//	_oCfg = ActivatorUtilities.CreateInstance<IConfiguration>(services);
+		//	// etc...
+		//}
+
+
+		private readonly IOperationRepo _oRepo;
+		public CalculationsController(IOperationRepo oRepo)
+		{
+			//// ASP.NET Core: Создание серверных служб для мобильных приложений
+			//// https://habr.com/company/microsoft/blog/319482/
+			//// Внедрение зависимостей в ASP.NET Core
+			//// https://docs.microsoft.com/ru-ru/aspnet/core/fundamentals/dependency-injection
+			this._oRepo = oRepo;
+		}
+
 
 		/// <summary>
 		/// Выполнять операции сложения, вычитания, умножения и деления
-		/// POST /calculations { “operand1”: 3.25, “operand2”: 1, “operator”: 1 }
+		/// POST /calculations { "operand1": 3.25, "operand2": 1, "operator": 1 }
 		///  => 200 OK { “Result”: 4.25 }
 		/// </summary>
 		/// <param name="operand1"></param>
@@ -22,10 +46,10 @@ namespace WebCalcDb.Controllers
 		/// <param name="op"></param>
 		/// <returns>200 OK { “Result”: 4.25 }</returns>
 		[HttpPost]
-		public IActionResult Post([FromBody]COperation op)
+		public IActionResult Post([FromBody]COperation item)
 		{
-			SCOperation.data.Add(op);
-			return Ok(new { Result = op.result });  //TODO: По ТЗ <<Result>> в ответе с заглавной
+			_oRepo.Add(item);
+			return Ok(new { Result = item.result });  //TODO: По ТЗ <<Result>> в ответе с заглавной
 		}
 		/*
 				public IActionResult Post([FromBody]double operand1, [FromBody]double operand2, [FromBody] [Bind(Prefix = "operator")] EMathOps action)
@@ -109,13 +133,14 @@ namespace WebCalcDb.Controllers
 			#endregion 
 
 			int StatusCode = (offset.HasValue || range.HasValue)? 206 : 200; // (Partial content) : (OK)
-
 			ObjectResult res;
-			if (SCOperation.data.Count() <= 0)
+
+			if (_oRepo.Count() <= 0)
 				res = new ObjectResult(new { s_DbgMsg, error = "Empty SCOperation.data" });
 			else
 			{
-				IEnumerable<COperation> filtered = (actions.Length == 0) ? (SCOperation.data) : (SCOperation.data.Where<COperation>(p => -1 != Array.IndexOf<EMathOps>(actions, p.action)));
+				IEnumerable<COperation> src = _oRepo.GetAll();
+				IEnumerable<COperation> filtered = (actions.Length == 0) ? (src) : (src.Where<COperation>(p => -1 != Array.IndexOf<EMathOps>(actions, p.action)));
 				if (!offset.HasValue)
 					offset = new uint?(0);
 				if (!range.HasValue)
@@ -131,9 +156,13 @@ namespace WebCalcDb.Controllers
 				res = new ObjectResult(new { s_DbgMsg, filtered });
 			}
 
+
 			res.StatusCode = StatusCode;
 			return res;
 		}
+
+
+
 		/* https://stackoverflow.com/questions/36280947/how-to-pass-multiple-parameters-to-a-get-method-in-asp-net-core
 		Why not using just one controller action?
 
@@ -161,7 +190,7 @@ namespace WebCalcDb.Controllers
 		}
 			*/
 
-		// DELETE api/values/5
+		// DELETE api/calculations/5
 		/// <summary>
 		/// Очистить историю вычислений
 		/// DELETE /calculations => 202 Accepted
@@ -174,22 +203,12 @@ namespace WebCalcDb.Controllers
 		}
 	}
 
-	/*	http://localhost:14590/api/values?operator=1&operator=2&operator=3
-		http://localhost:14590/api/values?op=1
-		http://localhost:14590/api/values?operator=1&operator=2&operator=3
-		http://localhost:14590/api/values?op=1&op=Sub&op=3&range=10&offset=20
-		http://localhost:14590/api/values?operator=1&operator=2&operator=3
-		http://localhost:14590/values?range=10&offset=20
-		http://localhost:14590/Values?operator=1&operator=2&operator=3
-		http://localhost:14590/api/values?operator=1&operator=2&operator=3
-		http://localhost:14590/api/AABBCC
-
-
+	/*	
 		http://localhost:14590/calculations
-		http://localhost:14590/calculations?operator=3
+		http://localhost:14590/calculations?operator=4
 		http://localhost:14590/calculations?operator=1&operator=2&operator=3
-		http://localhost:14590/calculations?operator=1&operator=2&operator=3&range=2&offset=3
-		http://localhost:14590/calculations?operator=1&operator=2&operator=3&range=3&offset=-3
+		http://localhost:14590/calculations?range=3&offset=2
+		http://localhost:14590/calculations?operator=1&operator=Sub&range=3&offset=2
 
 filtered	
 0	
@@ -237,6 +256,7 @@ result	"NaN"
 	[Route("api/[controller]")]
 	public class AABBCCController : Controller
 	{
+		// SCOperation.da
 		public IActionResult Get()
 		{
 			return Accepted();

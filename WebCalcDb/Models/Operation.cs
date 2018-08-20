@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Data.SqlClient;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
@@ -12,8 +14,22 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 
+// Ћогика бизнес-бизнеса в модел€х с MVC и MVC должна находитьс€ на уровне модели. » да, модель должна быть слоем, а не классом или объектом.
+// http://qaru.site/questions/200747/in-a-mvc-application-should-the-controller-or-the-model-handle-data-access
+
+// «а исключением интерфейса, любое приложение можно представить в виде моделей. 
+// »менно в них сосредоточены данные, основанные на них правила поведени€ и, в некоторых случа€х, даже вывод этих данных. 
+// »менно модель способна пон€ть, истолковать и изложить данные, обеспечив им осмысленное использование. 
+
+// 1. ћодель отвечает за сохранени€ состо€ни€ между HTTP-запросами
+// 2. ћодель включает в себ€ все правила и ограничени€, управл€ет поведением и использованием данной информации. 
+// https://habr.com/post/175465/
+
+// Ѕизнес-правила и реализаци€ доступа к данным должны обрабатыватьс€ в классах, которые предназначены дл€ этих целей:
+// https://deviq.com/separation-of-concerns/
 namespace WebCalcDb
 {
+
 	public enum EMathOps { Sum = 1, Sub, Mul, Div }; //TODO: «аменить Sum на Add - чтобы не путалс€ с Sub
 
 	/// <summary>
@@ -39,7 +55,8 @@ namespace WebCalcDb
 						case EMathOps.Div: return operand1 / operand2;
 						default: return double.NaN;
 					}
-				}catch(Exception ex)
+				}
+				catch (Exception ex)
 				{
 					return double.NaN;
 				}
@@ -47,56 +64,116 @@ namespace WebCalcDb
 		}
 	}
 
-	public static class SCOperation
+	public class SCOperation
 	{
-		public static List<COperation> data = new List<COperation>(64);
-		public static LoadFromDb()
+		//		public static List<COperation> data = new List<COperation>(64);
+	}
+
+
+	// ASP.NET Core: —оздание первого веб-API с использованием ASP.NET Core MVC
+	// https://habr.com/company/microsoft/blog/312878/
+
+	public interface IOperationRepo
+	{
+		void Add(COperation item);
+		IEnumerable<COperation> GetAll();
+		void Clear();
+		int Count();
+	}
+
+	public class OperationMemRepo : IOperationRepo
+	{
+		private List<COperation> data = new List<COperation>();
+
+		//		public TodoMemRepo()
+		//		{
+		////			Add(new COperation { Name = "Item1" });
+		//		}
+
+		public OperationMemRepo(string sConnStr)
 		{
-			using (SqlConnection connection = new SqlConnection(connectionString))
+			////			Add(new COperation { Name = "Item1" });
+		}
+
+		public IEnumerable<COperation> GetAll()
+		{
+			return data;
+		}
+
+		public void Add(COperation item)
+		{
+			data.Add(item);
+		}
+
+		public void Clear()
+		{
+			data.Clear();
+			return;
+		}
+
+		public int Count()
+		{
+			return data.Count;
+		}
+	}
+
+
+	public class OperationBdRepo : IOperationRepo
+	{
+		private string sConnStr;
+		SqlConnection oSqlConnection;
+
+		//		public TodoRepository()
+		//		{
+		////			Add(new COperation { Name = "Item1" });
+		//		}
+
+		public OperationBdRepo(string sConnStr)
+		{
+			this.sConnStr = sConnStr;
+			//var connectionString = Configuration.GetConnectionString("MovieContext")
+
+			////  ак в Asp Net Core подключитьс€ к MS SQL Server и увидеть данные?
+			//// https://toster.ru/q/400508
+			oSqlConnection = new SqlConnection(this.sConnStr);
+			oSqlConnection.Open();
+
+			//oSqlConnection.Close();
+			////  ак принудительно закрыть SqlConnection при использовании пула соединений?
+			//// http://qaru.site/questions/153079/how-to-force-a-sqlconnection-to-physically-close-while-using-connection-pooling
+		}
+
+		public IEnumerable<COperation> GetAll()
+		{
+			// https://toster.ru/q/400508
+			using (SqlCommand command = new SqlCommand("SELECT * FROM dbo.WebCalc", oSqlConnection))
 			{
-				connection.Open();
-				using (SqlCommand command = new SqlCommand("SELECT * FROM dbo.Table", connection))
+				var reader = command.ExecuteReader();
+				while (reader.Read())
 				{
-					var reader = command.ExecuteReader();
-					while (reader.Read())
-					{
-						var a = reader["Column"];//инициализаци€ значени€ переменной полем из таблицы Ѕƒ
-					}
+					var a = reader["Column"];//инициализаци€ значени€ переменной полем из таблицы Ѕƒ
 				}
 			}
-
+			return null;
 		}
-	}
 
-	/// <summary>
-	/// ID	UTC	(ms)	IP	operator(char[1] or Enum)	operand1	operand2
-	/// </summary>
-	public class COperationDb: COperation
-	{
-		public uint _id { get; set; }
-		public DateTime utc { get; set; }
-		public System.Net.IPAddress fromIP{ get; set; }
-	}
-
-
-	/*
-	public class Movie
-	{
-		public int ID { get; set; }
-		public string Title { get; set; }
-		public DateTime ReleaseDate { get; set; }
-		public string Genre { get; set; }
-		public decimal Price { get; set; }
-	}
-
-	public class MovieContext : DbContext
-	{
-		public MovieContext(DbContextOptions<MovieContext> options)
-				: base(options)
+		public void Add(COperation item)
 		{
+			throw (new NotImplementedException());
+			return;
 		}
 
-		public DbSet<Movie> Movie { get; set; }
+		public void Clear()
+		{
+			throw (new NotImplementedException());
+			return;
+		}
+
+		public int Count()
+		{
+			throw (new NotImplementedException());
+			//			return data.Count;
+		}
 	}
-	*/
+
 }

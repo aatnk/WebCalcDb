@@ -190,13 +190,13 @@ namespace WebCalcDb.Controllers
 		}
 			*/
 
-		// DELETE api/calculations/5
 		/// <summary>
 		/// Очистить историю вычислений
-		/// DELETE /calculations => 202 Accepted
+		/// curl -X DELETE -H 'Content-Type: application/json' -i http://localhost:14590/calculations  
+		/// => 202 Accepted
 		/// </summary>
 		/// <returns>202 Accepted</returns>
-		[HttpDelete("{id}")]
+		[HttpDelete]
 		public IActionResult Delete()
 		{
 			return Accepted();

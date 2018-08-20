@@ -32,6 +32,9 @@ namespace WebCalcDb
 
 	public enum EMathOps { Sum = 1, Sub, Mul, Div }; //TODO: «аменить Sum на Add - чтобы не путалс€ с Sub
 
+	//// —интаксис добавлени€ ограничени€. ѕараметр ON DELETE CASCADE - удал€ет дочерние строки при удалении родительского ключа
+	//// http://sql-oracle.ru/sintaksis-dobavleniya-ogranicheniya-parametr-on-delete-cascade.html
+
 	/// <summary>
 	/// { Уoperand1Ф: 3.25, Уoperand2Ф: 1, УoperatorФ: УSumФ, УresultФ: 4.25  }
 	/// </summary>
@@ -75,11 +78,21 @@ namespace WebCalcDb
 
 	public interface IOperationRepo
 	{
-		void Add(COperation item);
+		bool Add(COperation item);
 		IEnumerable<COperation> GetAll();
-		void Clear();
+		bool Clear();
 		int Count();
 	}
+
+	//public abstract class BaseOperationRepo : IOperationRepo
+	//{
+	//	public abstract void Add(COperation item);
+	//	public abstract void Clear();
+	//	public abstract IEnumerable<COperation> GetAll();
+
+	//	public int Count()	{ return GetAll().Count(); }
+
+	//}
 
 	public class OperationMemRepo : IOperationRepo
 	{
@@ -90,38 +103,41 @@ namespace WebCalcDb
 		////			Add(new COperation { Name = "Item1" });
 		//		}
 
+
 		public OperationMemRepo(string sConnStr)
 		{
 			////			Add(new COperation { Name = "Item1" });
 		}
 
-		public IEnumerable<COperation> GetAll()
+		IEnumerable<COperation> IOperationRepo.GetAll()
 		{
 			return data;
 		}
 
-		public void Add(COperation item)
+		bool IOperationRepo.Add(COperation item)
 		{
 			data.Add(item);
+			return true;
 		}
 
-		public void Clear()
+		bool IOperationRepo.Clear()
 		{
 			data.Clear();
-			return;
+			return true;
 		}
 
-		public int Count()
+		int IOperationRepo.Count()
 		{
 			return data.Count;
 		}
+
 	}
 
 
 	public class OperationBdRepo : IOperationRepo
 	{
-		private string sConnStr;
-		SqlConnection oSqlConnection;
+		private string _sConnStr;
+		private SqlConnection _oSqlConnection;
 
 		//		public TodoRepository()
 		//		{
@@ -130,13 +146,19 @@ namespace WebCalcDb
 
 		public OperationBdRepo(string sConnStr)
 		{
-			this.sConnStr = sConnStr;
-			//var connectionString = Configuration.GetConnectionString("MovieContext")
+			//// —войство SqlConnection.ConnectionString
+			//// https://msdn.microsoft.com/ru-ru/library/system.data.sqlclient.sqlconnection.connectionstring(v=vs.110).aspx
+			this._sConnStr = sConnStr;
 
-			////  ак в Asp Net Core подключитьс€ к MS SQL Server и увидеть данные?
-			//// https://toster.ru/q/400508
-			oSqlConnection = new SqlConnection(this.sConnStr);
-			oSqlConnection.Open();
+			//// How To Create Table with Identity Column https://stackoverflow.com/questions/10725705/how-to-create-table-with-identity-column
+			//// [ID] [int] IDENTITY(1,1) NOT NULL,
+			//// 14 вопросов об индексах в SQL Server, которые вы стесн€лись задать https://habr.com/post/247373/#02
+
+			////  ак в Asp Net Core подключитьс€ к MS SQL Server и увидеть данные? https://toster.ru/q/400508
+			//// —оедин€тьс€ с базой каждый раз или сделать одно общее подключение? https://toster.ru/q/279429
+			//// ќбъединение подключений в пул в SQL Server (ADO.NET) https://docs.microsoft.com/ru-ru/dotnet/framework/data/adonet/sql-server-connection-pooling
+			_oSqlConnection = new SqlConnection(this._sConnStr);
+
 
 			//oSqlConnection.Close();
 			////  ак принудительно закрыть SqlConnection при использовании пула соединений?
@@ -145,35 +167,67 @@ namespace WebCalcDb
 
 		public IEnumerable<COperation> GetAll()
 		{
+			var ret = new List<COperation>();
 			// https://toster.ru/q/400508
-			using (SqlCommand command = new SqlCommand("SELECT * FROM dbo.WebCalc", oSqlConnection))
+			using (SqlCommand cmd = new SqlCommand("SELECT * FROM dbo.WebCalc", _oSqlConnection))
 			{
-				var reader = command.ExecuteReader();
+				if (_oSqlConnection.State != System.Data.ConnectionState.Open)
+					_oSqlConnection.Open();
+				var reader = cmd.ExecuteReader();
 				while (reader.Read())
 				{
-					var a = reader["Column"];//инициализаци€ значени€ переменной полем из таблицы Ѕƒ
+					ret.Add(new COperation() { operand1 = (double) reader["operand1"], operand2 = (double) reader["operand2"], action = (EMathOps)reader["operator"] });
 				}
+				if (_oSqlConnection.State == System.Data.ConnectionState.Open)
+					_oSqlConnection.Close();
 			}
-			return null;
+			return ret;
 		}
 
-		public void Add(COperation item)
+		public bool Add(COperation item)
 		{
-			throw (new NotImplementedException());
-			return;
+			//try {
+				//// https://ru.wikipedia.org/wiki/Insert_(SQL)
+				//// ¬ыполнить команду Insrt и вернуть вставленный идентификатор в Sql http://qaru.site/questions/94594/execute-insert-command-and-return-inserted-id-in-sql
+				using (SqlCommand cmd = new SqlCommand("INSERT INTO dbo.WebCalc(operator,operand1,operand2) VALUES(@operator,@operand1,@operand2)", _oSqlConnection))
+				{
+					cmd.Parameters.AddWithValue("@operator", item.action);
+					cmd.Parameters.AddWithValue("@operand1", item.operand1);
+					cmd.Parameters.AddWithValue("@operand2", item.operand2);
+
+					if (_oSqlConnection.State != System.Data.ConnectionState.Open)
+						_oSqlConnection.Open();
+					int modified = (int)cmd.ExecuteNonQuery();
+					if (_oSqlConnection.State == System.Data.ConnectionState.Open)
+						_oSqlConnection.Close();
+
+					return (1 == modified);
+				}
+			//}	catch (SqlException ex)
+			//{
+			//	return false;
+			//	throw;
+			//}
+
 		}
 
-		public void Clear()
+
+		public bool Clear()
 		{
-			throw (new NotImplementedException());
-			return;
+			//// https://ru.wikipedia.org/wiki/Truncate_(SQL)
+			using (SqlCommand cmd = new SqlCommand("TRUNCATE TABLE dbo.WebCalc", _oSqlConnection))
+			{
+				if (_oSqlConnection.State != System.Data.ConnectionState.Open)
+					_oSqlConnection.Open();
+				int modified = (int)cmd.ExecuteNonQuery();
+				if (_oSqlConnection.State == System.Data.ConnectionState.Open)
+					_oSqlConnection.Close();
+
+				return true;
+			}
 		}
 
-		public int Count()
-		{
-			throw (new NotImplementedException());
-			//			return data.Count;
-		}
+		public int Count() { return GetAll().Count(); }
 	}
 
 }

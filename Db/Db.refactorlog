@@ -1,0 +1,10 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Operations Version="1.0" xmlns="http://schemas.microsoft.com/sqlserver/dac/Serialization/2012/02">
+  <Operation Name="Rename Refactor" Key="02df80b8-e2e0-45d7-b13a-d4387d75ab6a" ChangeDateTime="08/20/2018 04:05:50">
+    <Property Name="ElementName" Value="[dbo].[WebCalc].[Id]" />
+    <Property Name="ElementType" Value="SqlIndex" />
+    <Property Name="ParentElementName" Value="[dbo].[WebCalc]" />
+    <Property Name="ParentElementType" Value="SqlTable" />
+    <Property Name="NewName" Value="[_Id]" />
+  </Operation>
+</Operations>

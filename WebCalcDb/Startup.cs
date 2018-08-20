@@ -15,6 +15,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace WebCalcDb
 {
+
+	//// ASP.NET Core: Создание серверных служб для мобильных приложений https://habr.com/company/microsoft/blog/319482/
+
 	public class Startup
 	{
 		public Startup(IConfiguration configuration)
@@ -28,7 +31,7 @@ namespace WebCalcDb
 		public void ConfigureServices(IServiceCollection services)
 		{
 
-			string connection = Configuration.GetConnectionString("ConnectionStrings");
+			string connection = Configuration.GetConnectionString("localdb");
 
 
 			//// Добавление модели в приложение Razor Pages в ASP.NET Core
@@ -59,7 +62,12 @@ namespace WebCalcDb
 			services.AddMvc();
 
 			//// Жизненный цикл зависимостей https://metanit.com/sharp/aspnet5/6.2.php
-			services.AddSingleton<IOperationRepo>(new OperationMemRepo(connection));
+			//// Передача конфигурации через IOptions https://metanit.com/sharp/aspnet5/6.3.php
+			//// Dependency Injection - Передача зависимостей https://metanit.com/sharp/aspnet5/6.4.php
+
+
+			//			services.AddSingleton<IOperationRepo>(new OperationMemRepo(connection));
+			services.AddSingleton<IOperationRepo>(new OperationBdRepo(connection));
 			//// ИСПОЛЬЗОВАНИЕ: Singleton-объекты и scoped-сервисы
 			//// https://docs.microsoft.com/ru-ru/aspnet/core/fundamentals/dependency-injection?view=aspnetcore-2.0
 
@@ -85,6 +93,7 @@ namespace WebCalcDb
 						}
 					}
 			*/
+
 		}
 
 		// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

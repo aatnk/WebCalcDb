@@ -38,7 +38,7 @@ namespace WebCalcDb.Controllers
 
 		/// <summary>
 		/// Выполнять операции сложения, вычитания, умножения и деления
-		/// POST /calculations { "operand1": 3.25, "operand2": 1, "operator": 1 }
+		/// curl -X POST -H 'Content-Type: application/json' -i http://localhost:14590/calculations --data '{ "operand1": 3.25, "operand2": 2, "operator": 1 }'
 		///  => 200 OK { “Result”: 4.25 }
 		/// </summary>
 		/// <param name="operand1"></param>

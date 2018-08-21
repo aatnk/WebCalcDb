@@ -9,7 +9,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace WebCalcDb
 {
 	[Route("api/[controller]")]
-	public class SecondController : Controller
+	[Route("api/Second")]
+	public class DefaultController : Controller
 	{
 		// GET: api/<controller>
 		[HttpGet]

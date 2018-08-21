@@ -4,7 +4,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 
 namespace WebCalcDb.Controllers
 {
@@ -12,6 +14,29 @@ namespace WebCalcDb.Controllers
 	[Route("[controller]")]
 	public class CalculationsController : Controller
 	{
+		/* 
+		Тестирование логики контроллера в ASP.NET Core
+		https://docs.microsoft.com/ru-ru/aspnet/core/mvc/controllers/testing?view=aspnetcore-2.1
+		Старайтесь не возвращать бизнес-элементы непосредственно через вызовы API, так как они часто содержат больше данных, 
+		чем требуется клиенту API, и связывают внутреннюю модель предметной области приложения с интерфейсом API, 
+		доступным извне, чего следует избегать.Сопоставлять элементы предметной области и типы, возвращаемые по сети, 
+		можно вручную (с помощью инструкции LINQ Select, как показано здесь) или с помощью такой библиотеки, как AutoMapper.
+		*/
+		public class Dto
+		{
+			public class COperationDto
+			{
+				public double operand1 { get; set; }
+				public double operand2 { get; set; }
+				[JsonProperty(PropertyName = "operator")]
+				public EMathOps action { get; set; }
+				public double result { get; set; }
+			}
+			public class CResultDto
+			{
+				public double Result { get; set; } // По ТЗ <<Result>> в данном ответе с заглавной
+			}
+		}
 
 		//// (!!) Доступ к зависимым инъецированным службам в MVC 6
 		//// http://qaru.site/questions/2222129/accessing-dependency-injected-services-in-mvc-6
@@ -26,15 +51,38 @@ namespace WebCalcDb.Controllers
 
 
 		private readonly IOperationRepo _oRepo;
-		public CalculationsController(IOperationRepo oRepo)
+		private readonly ILogger<CalculationsController> _logger;
+
+		public CalculationsController(IOperationRepo oRepo,
+			ILogger<CalculationsController> logger)
 		{
 			//// ASP.NET Core: Создание серверных служб для мобильных приложений
 			//// https://habr.com/company/microsoft/blog/319482/
 			//// Внедрение зависимостей в ASP.NET Core
 			//// https://docs.microsoft.com/ru-ru/aspnet/core/fundamentals/dependency-injection
 			this._oRepo = oRepo;
+
+			//// dotNET.today - Логирование
+			//// http://dotnet.today/ru/aspnet5-vnext/fundamentals/logging.html
+			this._logger = logger;
 		}
 
+		private ObjectResult StatusCode(object val = null, int iCode = 200, string msg = null, Exception ex = null)
+		{
+			string sLongLogMsg = "HTTP(" + iCode + "): " + ((null == msg) ? "(no message)" : msg);
+			if (iCode < 200)
+				_logger.LogInformation(ex, sLongLogMsg);
+			if (200 <= iCode && iCode < 300 && (null != msg || null != ex))
+				_logger.LogInformation(ex, sLongLogMsg);
+			if (300 <= iCode && iCode < 400)
+				_logger.LogInformation(ex, sLongLogMsg);
+			if (400 <= iCode && iCode < 500)
+				_logger.LogWarning(ex, sLongLogMsg);
+			if (500 <= iCode)
+				_logger.LogError(ex, sLongLogMsg);
+
+			return base.StatusCode(iCode, val);
+		}
 
 		/// <summary>
 		/// Выполнять операции сложения, вычитания, умножения и деления
@@ -46,10 +94,26 @@ namespace WebCalcDb.Controllers
 		/// <param name="op"></param>
 		/// <returns>200 OK { “Result”: 4.25 }</returns>
 		[HttpPost]
-		public IActionResult Post([FromBody]COperation item)
+		public IActionResult Post([FromBody]Dto.COperationDto itemDto)
 		{
-			_oRepo.Add(item);
-			return Ok(new { Result = item.result });  //TODO: По ТЗ <<Result>> в ответе с заглавной
+			try
+			{
+				if (null == itemDto)
+					return StatusCode(null, 400, "the request does not contain valid data");
+
+				var item = new COperation { operand1 = itemDto.operand1, operand2 = itemDto.operand2, action = itemDto.action };
+
+				if (double.IsNaN(item.result))
+					return StatusCode(new Dto.CResultDto { Result = item.result }, 400, "the request does not contain valid data (incorrect mathematical operation?)");
+
+				_oRepo.Add(item);
+				// По ТЗ <<Result>> в данном ответе с заглавной
+				return StatusCode(new Dto.CResultDto { Result = item.result }); // 200 Ok
+			}
+			catch (Exception ex)
+			{
+				return StatusCode(null, 500, "POST fail with exception", ex);
+			}
 		}
 		/*
 				public IActionResult Post([FromBody]double operand1, [FromBody]double operand2, [FromBody] [Bind(Prefix = "operator")] EMathOps action)
@@ -105,40 +169,39 @@ namespace WebCalcDb.Controllers
 		static uint s_uCounter = 0;
 		uint m_uCounter = 0;
 		public IActionResult Get([Bind(Prefix = "operator")] EMathOps[] actions, uint? offset, uint? range)
-
 		{
-			#region //TODO: DelDebCode
-			s_uCounter++;
-			m_uCounter++;
-			var s_DbgMsg = "";
-			s_DbgMsg += s_uCounter + ":" + m_uCounter;
-
-			s_DbgMsg += ("; op=" + actions.Length);
-
-			uint op_item_counter = 0;
-			foreach (var op_item in actions)
+			try
 			{
-				s_DbgMsg += ("; op[" + op_item_counter + "]=" + op_item);
-				op_item_counter++;
-			}
+				#region //TODO: DelDebCode
+				s_uCounter++;
+				m_uCounter++;
+				var s_DbgMsg = "";
+				s_DbgMsg += s_uCounter + ":" + m_uCounter;
 
-			if (offset.HasValue || range.HasValue)
-			{
-				s_DbgMsg += offset.HasValue ? ("; offset=" + offset.Value.ToString()) : "";
-				if (!offset.HasValue) s_DbgMsg += "; (offset skipped)";
+				s_DbgMsg += ("; op=" + actions.Length);
 
-				s_DbgMsg += range.HasValue ? ("; range=" + range.Value.ToString()) : "";
-				if (!range.HasValue) s_DbgMsg += "; (range skipped)";
-			}
-			#endregion 
+				uint op_item_counter = 0;
+				foreach (var op_item in actions)
+				{
+					s_DbgMsg += ("; op[" + op_item_counter + "]=" + op_item);
+					op_item_counter++;
+				}
 
-			int StatusCode = (offset.HasValue || range.HasValue)? 206 : 200; // (Partial content) : (OK)
-			ObjectResult res;
+				if (offset.HasValue || range.HasValue)
+				{
+					s_DbgMsg += offset.HasValue ? ("; offset=" + offset.Value.ToString()) : "";
+					if (!offset.HasValue) s_DbgMsg += "; (offset skipped)";
 
-			if (_oRepo.Count() <= 0)
-				res = new ObjectResult(new { s_DbgMsg, error = "Empty SCOperation.data" });
-			else
-			{
+					s_DbgMsg += range.HasValue ? ("; range=" + range.Value.ToString()) : "";
+					if (!range.HasValue) s_DbgMsg += "; (range skipped)";
+				}
+				#endregion
+
+				int iHttpCode = (offset.HasValue || range.HasValue) ? 206 : 200; // (Partial content) : (OK)
+
+				if (_oRepo.Count() <= 0)
+					return StatusCode(null, iHttpCode, "GET - " + "empty repository");
+
 				IEnumerable<COperation> src = _oRepo.GetAll();
 				IEnumerable<COperation> filtered = (actions.Length == 0) ? (src) : (src.Where<COperation>(p => -1 != Array.IndexOf<EMathOps>(actions, p.action)));
 				if (!offset.HasValue)
@@ -146,19 +209,28 @@ namespace WebCalcDb.Controllers
 				if (!range.HasValue)
 					range = new uint?(0); // if (range==0) parce to end 
 				if (offset.Value >= filtered.Count())
-					return BadRequest(new { s_DbgMsg, error = "offset too lage, offset="+ offset.Value+ " and filtered.Count()=" + filtered.Count() });
+					return StatusCode(null, 400, "GET - " + $"offset too lage, offset={offset.Value} more than {filtered.Count()} ({s_DbgMsg})");
 
 				if (0 == range.Value || (offset.Value + range.Value - 1) > (uint)(filtered.Count()))
 					range = new uint?((uint)(filtered.Count()) - offset.Value); // Устанавливаем диапазон в конец
 
 				filtered = filtered.Skip((int)offset.Value).Take((int)range.Value);
 
-				res = new ObjectResult(new { s_DbgMsg, filtered });
+				// https://docs.microsoft.com/ru-ru/aspnet/core/mvc/controllers/testing?view=aspnetcore-2.1
+				var result = filtered.Select(item => new Dto.COperationDto()
+				{
+					action = item.action,
+					operand1 = item.operand1,
+					operand2 = item.operand2,
+					result = item.result
+				}).ToList();
+
+				return StatusCode(result, 200, "GET - " + s_DbgMsg);
 			}
-
-
-			res.StatusCode = StatusCode;
-			return res;
+			catch (Exception ex)
+			{
+				return StatusCode(null, 500, "GET fail with exception", ex);
+			}
 		}
 
 
@@ -199,67 +271,68 @@ namespace WebCalcDb.Controllers
 		[HttpDelete]
 		public IActionResult Delete()
 		{
-			return Accepted();
+			try
+			{
+				if (_oRepo.Clear())
+					return StatusCode(null, 202, "DELETE success");
+				else
+					return StatusCode(null, 500, "DELETE unsuccess");
+			}
+			catch (Exception ex)
+			{
+				return StatusCode(null, 500, "DELETE fail with exception", ex);
+			}
 		}
-	}
 
-	/*	
-		http://localhost:14590/calculations
-		http://localhost:14590/calculations?operator=4
-		http://localhost:14590/calculations?operator=1&operator=2&operator=3
-		http://localhost:14590/calculations?range=3&offset=2
-		http://localhost:14590/calculations?operator=1&operator=Sub&range=3&offset=2
+		/*	
+			http://localhost:14590/calculations
+			http://localhost:14590/calculations?operator=4
+			http://localhost:14590/calculations?operator=1&operator=2&operator=3
+			http://localhost:14590/calculations?range=3&offset=2
+			http://localhost:14590/calculations?operator=1&operator=Sub&range=3&offset=2
 
-filtered	
-0	
-operand1	3.25
-operand2	1
-operator	1
-result	4.25
-1	
-operand1	3.25
-operand2	1
-operator	1
-result	4.25
-2	
-operand1	3.25
-operand2	1
-operator	1
-result	4.25
-3	
-operand1	3.25
-operand2	1
-operator	1
-result	4.25
-4	
-operand1	3.25
-operand2	1
-operator	2
-result	2.25
-5	
-operand1	3.25
-operand2	1
-operator	3
-result	3.25
-6	
-operand1	3.25
-operand2	1
-operator	4
-result	3.25
-7	
-operand1	3.25
-operand2	1
-operator	5
-result	"NaN"
-	*/
+	filtered	
+	0	
+	operand1	3.25
+	operand2	1
+	operator	1
+	result	4.25
+	1	
+	operand1	3.25
+	operand2	1
+	operator	1
+	result	4.25
+	2	
+	operand1	3.25
+	operand2	1
+	operator	1
+	result	4.25
+	3	
+	operand1	3.25
+	operand2	1
+	operator	1
+	result	4.25
+	4	
+	operand1	3.25
+	operand2	1
+	operator	2
+	result	2.25
+	5	
+	operand1	3.25
+	operand2	1
+	operator	3
+	result	3.25
+	6	
+	operand1	3.25
+	operand2	1
+	operator	4
+	result	3.25
+	7	
+	operand1	3.25
+	operand2	1
+	operator	5
+	result	"NaN"
+		*/
 
-	[Route("api/[controller]")]
-	public class AABBCCController : Controller
-	{
-		// SCOperation.da
-		public IActionResult Get()
-		{
-			return Accepted();
-		}
 	}
 }

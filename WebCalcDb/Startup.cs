@@ -15,9 +15,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace WebCalcDb
 {
-
 	//// ASP.NET Core: Создание серверных служб для мобильных приложений https://habr.com/company/microsoft/blog/319482/
-
 	public class Startup
 	{
 		public Startup(IConfiguration configuration)
@@ -97,11 +95,17 @@ namespace WebCalcDb
 		}
 
 		// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-		public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+		public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
 		{
+			//// dotNET.today - Application Startup - The Configure method
+			//// http://dotnet.today/en/aspnet5-vnext/fundamentals/startup.html
+			//loggerFactory.AddConsole(Configuration.GetSection("Logging"));
+			//loggerFactory.AddDebug();
+
 			if (env.IsDevelopment())
 			{
 				app.UseDeveloperExceptionPage();
+				//app.UseDatabaseErrorPage();
 			}
 
 			app.UseMvc();

@@ -59,7 +59,7 @@ namespace WebCalcDb
 						default: return double.NaN;
 					}
 				}
-				catch (Exception ex)
+				catch (Exception)
 				{
 					return double.NaN;
 				}
@@ -67,11 +67,13 @@ namespace WebCalcDb
 		}
 	}
 
-	public class SCOperation
+	/// <summary>
+	/// { "Result": 4.25  }
+	/// </summary>
+	public class CResult
 	{
-		//		public static List<COperation> data = new List<COperation>(64);
+		public double Result	{ get; set; }
 	}
-
 
 	// ASP.NET Core: Создание первого веб-API с использованием ASP.NET Core MVC
 	// https://habr.com/company/microsoft/blog/312878/

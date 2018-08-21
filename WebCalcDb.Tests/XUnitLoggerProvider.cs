@@ -4,7 +4,11 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
 
-
+//// Вопрос: Ядро Entity Framework: запросы журнала для одного экземпляра контекста db
+//// Entity Framework Core: Log queries for a single db context instance
+//// https://www.programmerz.ru/questions/25714/entity-framework-core-log-queries-for-a-single-db-context-instance-question
+//// https://stackoverflow.com/questions/43424095/how-to-unit-test-with-ilogger-in-asp-net-core
+//// (c) Ilya Chumakov, 2017
 namespace Xunit.Loging
 {
 	public interface IWriter

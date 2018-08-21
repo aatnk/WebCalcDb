@@ -22,12 +22,20 @@ namespace WebCalcDb.Tests
 		public UnitTests(ITestOutputHelper output)
 			: base(output)
 		{
+			//// Вопрос: Ядро Entity Framework: запросы журнала для одного экземпляра контекста db
+			//// Entity Framework Core: Log queries for a single db context instance
+			//// https://www.programmerz.ru/questions/25714/entity-framework-core-log-queries-for-a-single-db-context-instance-question
+			//// https://stackoverflow.com/questions/43424095/how-to-unit-test-with-ilogger-in-asp-net-core
+			//// (c) Ilya Chumakov, 2017
 			var serviceProvider = new ServiceCollection().AddLogging().BuildServiceProvider();
 			_loggerFactory = serviceProvider.GetService<ILoggerFactory>();
 			_loggerFactory.AddProvider(new LoggerProvider(this));
 			_logger = _loggerFactory.CreateLogger<UnitTests>();
 		}
 
+
+		//// Вообще MS рекомендует переопределять DTO в тестах (NewDto), чтобы зафиксировать тесовую модель данных и исключить ложное согласование  
+		//// Но мы так делать не будем тк итак очень много DTO
 		KeyValuePair<Dto.COperationDto, Dto.CResultDto>[] opsSuccess = new KeyValuePair<Dto.COperationDto, Dto.CResultDto>[4] {
 			new KeyValuePair<Dto.COperationDto, Dto.CResultDto>(new Dto.COperationDto { operand1 = 3.25, operand2 = 2, action = (EMathOps)1 }, new Dto.CResultDto { Result = 3.25+2 } ),
 			new KeyValuePair<Dto.COperationDto, Dto.CResultDto>(new Dto.COperationDto { operand1 = 3.25, operand2 = 2, action = (EMathOps)2 }, new Dto.CResultDto { Result = 3.25-2 } ),

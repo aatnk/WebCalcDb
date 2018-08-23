@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
+using System.Linq;
+
 
 //// Вопрос: Ядро Entity Framework: запросы журнала для одного экземпляра контекста db
 //// Entity Framework Core: Log queries for a single db context instance
@@ -75,7 +77,11 @@ namespace Xunit.Loging
 					return;
 
 				string dtNow = DateTime.Now.ToLocalTime().ToString("HH:mm:ss.ffff");
-				string line = $"[{dtNow} {this.Name}]>> {logLevel}: {categoryName}: {message}";
+				IEnumerable<string> categoryNameArray = categoryName.Split('.');
+				string categoryNameFixed = (categoryNameArray.Count() > 1) ? ("<" + categoryNameArray.Last() + ">") : ( ": "+ categoryName);
+				string logLevelFixed = (logLevel.ToString().Length>5)?(logLevel.ToString().Substring(0,4)):(logLevel.ToString());
+				//string line = $"[{dtNow} {this.Name}{categoryNameFixed}]:    {logLevel}:  {message}";
+				string line = $"[{dtNow} {categoryNameFixed}]:    {logLevelFixed}:  {message}";
 
 				Writer.WriteLine(line);
 

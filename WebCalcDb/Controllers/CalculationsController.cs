@@ -24,7 +24,15 @@ namespace WebCalcDb.Controllers
 		*/
 		public class Dto
 		{
-			public class COperationDto
+			public class COperationInputDto
+			{
+				public double operand1 { get; set; }
+				public double operand2 { get; set; }
+				[JsonProperty(PropertyName = "operator")]
+				public EMathOps action { get; set; }
+			}
+
+			public class COperationOutputDto
 			{
 				public double operand1 { get; set; }
 				public double operand2 { get; set; }
@@ -94,7 +102,7 @@ namespace WebCalcDb.Controllers
 		/// <param name="op"></param>
 		/// <returns>200 OK { “Result”: 4.25 }</returns>
 		[HttpPost]
-		public IActionResult Post([FromBody]Dto.COperationDto itemDto)
+		public IActionResult Post([FromBody]Dto.COperationInputDto itemDto)
 		{
 			try
 			{
@@ -127,7 +135,7 @@ namespace WebCalcDb.Controllers
 				}
 		*/
 		//TODO: 1) <<GET /calculations? fetch = 1 & offset = 3 &operator=1 >> - что за параметр fetch? Кроме данного примера более в ТЗ нигде не описан.
-		//TODO: 2) <<GET /calculations? offset = 20 & range = 10 & operator=1 >> - какова логика пагинации - offset и range делаем по записям в базе или по отфильтрованной через <<operator>> выборке?
+		//TODO: 2) <<GET /calculations? offset = 20 & fetch = 10 & operator=1 >> - какова логика пагинации - offset и fetch делаем по записям в базе или по отфильтрованной через <<operator>> выборке?
 		//TODO: 3) В ТЗ operator для GET запроса описан в числовом виде <<&operator=1>> а в JSON-ответе - в символьном <<“operator”: “Sum”>>. Сохранить данное несоответствие или исправить?
 		// Можно ли вопросы по ТЗ адресовать напрямую Максиму? )
 		// Кому и как передавать результат? Ссылка на репозиторий в Bitbucket?(оптимально)? архив? гитхаб? 
@@ -147,12 +155,12 @@ namespace WebCalcDb.Controllers
 		/// <summary>
 		/// Просмотреть N последних операций по типам оператора op
 		/// *) Метод должен иметь возможность принимать несколько типов операторов, например: GET /calculations? operator=1& operator=2
-		/// *) Если в методе не указаны параметры offset и range, то возвращается полный список и код HTTP	 200, если указан диапазон, то HTTP 206  (partial content)  и список.
+		/// *) Если в методе не указаны параметры offset и fetch, то возвращается полный список и код HTTP	 200, если указан диапазон, то HTTP 206  (partial content)  и список.
 		/// GET /calculations? fetch = 1 & offset = 3 &operator=1 
 		///   => 206 partial content [{ “operand1”: 3.25, “operand2”: 1, “operator”: “Sum”, “result”: 4.25  }]
 		/// 
 		/// 
-		/// Если в методе не указаны параметры offset и range то возвращается код HTTP 200
+		/// Если в методе не указаны параметры offset и fetch то возвращается код HTTP 200
 		/// GET /calculations
 		/// GET /calculations?operator=1&operator=2&operator=3
 		///   => 200 OK [{ “operand1”: 3.25, “operand2”: 1, “operator”: “Sum”, “result”: 4.25  }, { “operand1”: 3.25, “operand2”: 1, “operator”: “Mul”, “result”: 3.25  }]
@@ -161,17 +169,19 @@ namespace WebCalcDb.Controllers
 		///
 		/// если указан диапазон, то HTTP 206 Partial Content — сервер удачно выполнил частичный GET-запрос, возвратив только часть сообщения. 
 		/// В заголовке Content-Range сервер указывает байтовые диапазоны содержимого. Особое внимание при работе с подобными ответами следует уделить кэшированию. 
-		/// GET /calculations? offset = 0 & range = 1 & operator=1 
+		/// GET /calculations? offset = 0 & fetch = 1 & operator=1 
 		///   => 206 Partial Content  [{ “operand1”: 3.25, “operand2”: 1, “operator”: “Sum”, “result”: 4.25  }]
 		/// </summary>
 		/// <param name="op"></param>
 		/// <returns>=> 200 OK [{},{},{}] or 206 Partial Content  [{},{},{}]</returns>
 		static uint s_uCounter = 0;
 		uint m_uCounter = 0;
-		public IActionResult Get([Bind(Prefix = "operator")] EMathOps[] actions, uint? offset, uint? range)
+		public IActionResult Get([Bind(Prefix = "operator")] EMathOps[] actions, uint? offset, uint? fetch)
 		{
 			try
 			{
+				actions = (null == actions ) ? ( new EMathOps[] { } ) : actions;
+
 				#region //TODO: DelDebCode
 				s_uCounter++;
 				m_uCounter++;
@@ -187,17 +197,17 @@ namespace WebCalcDb.Controllers
 					op_item_counter++;
 				}
 
-				if (offset.HasValue || range.HasValue)
+				if (offset.HasValue || fetch.HasValue)
 				{
 					s_DbgMsg += offset.HasValue ? ("; offset=" + offset.Value.ToString()) : "";
 					if (!offset.HasValue) s_DbgMsg += "; (offset skipped)";
 
-					s_DbgMsg += range.HasValue ? ("; range=" + range.Value.ToString()) : "";
-					if (!range.HasValue) s_DbgMsg += "; (range skipped)";
+					s_DbgMsg += fetch.HasValue ? ("; fetch=" + fetch.Value.ToString()) : "";
+					if (!fetch.HasValue) s_DbgMsg += "; (fetch skipped)";
 				}
 				#endregion
 
-				int iHttpCode = (offset.HasValue || range.HasValue) ? 206 : 200; // (Partial content) : (OK)
+				int iHttpCode = (offset.HasValue || fetch.HasValue) ? 206 : 200; // (Partial content) : (OK)
 
 				if (_oRepo.Count() <= 0)
 					return StatusCode(null, iHttpCode, "GET - " + "empty repository");
@@ -206,26 +216,26 @@ namespace WebCalcDb.Controllers
 				IEnumerable<COperation> filtered = (actions.Length == 0) ? (src) : (src.Where<COperation>(p => -1 != Array.IndexOf<EMathOps>(actions, p.action)));
 				if (!offset.HasValue)
 					offset = new uint?(0);
-				if (!range.HasValue)
-					range = new uint?(0); // if (range==0) parce to end 
+				if (!fetch.HasValue)
+					fetch = new uint?(0); // if (fetch==0) parce to end 
 				if (offset.Value >= filtered.Count())
 					return StatusCode(null, 400, "GET - " + $"offset too lage, offset={offset.Value} more than {filtered.Count()} ({s_DbgMsg})");
 
-				if (0 == range.Value || (offset.Value + range.Value - 1) > (uint)(filtered.Count()))
-					range = new uint?((uint)(filtered.Count()) - offset.Value); // Устанавливаем диапазон в конец
+				if (0 == fetch.Value || (offset.Value + fetch.Value - 1) > (uint)(filtered.Count()))
+					fetch = new uint?((uint)(filtered.Count()) - offset.Value); // Устанавливаем диапазон в конец
 
-				filtered = filtered.Skip((int)offset.Value).Take((int)range.Value);
+				filtered = filtered.Skip((int)offset.Value).Take((int)fetch.Value);
 
 				// https://docs.microsoft.com/ru-ru/aspnet/core/mvc/controllers/testing?view=aspnetcore-2.1
-				var result = filtered.Select(item => new Dto.COperationDto()
+				var result = filtered.Select(item => new Dto.COperationOutputDto()
 				{
 					action = item.action,
 					operand1 = item.operand1,
 					operand2 = item.operand2,
 					result = item.result
-				}).ToList();
+				}).ToArray();
 
-				return StatusCode(result, 200, "GET - " + s_DbgMsg);
+				return StatusCode(result, iHttpCode, "GET - " + s_DbgMsg);
 			}
 			catch (Exception ex)
 			{
@@ -285,11 +295,16 @@ namespace WebCalcDb.Controllers
 		}
 
 		/*	
-			http://localhost:14590/calculations
-			http://localhost:14590/calculations?operator=4
-			http://localhost:14590/calculations?operator=1&operator=2&operator=3
-			http://localhost:14590/calculations?range=3&offset=2
-			http://localhost:14590/calculations?operator=1&operator=Sub&range=3&offset=2
+200	http://localhost:14590/calculations
+200	http://localhost:14590/calculations?operator=4
+200	http://localhost:14590/calculations?operator=1&operator=2&operator=3
+206	http://localhost:14590/calculations?fetch=0&offset=0
+206	http://localhost:14590/calculations?fetch=3&offset=0
+206	http://localhost:14590/calculations?fetch=3&offset=2
+206	http://localhost:14590/calculations?operator=1&operator=2&fetch=3&offset=2
+
+400	http://localhost:14590/calculations?operator=Random
+400	http://localhost:14590/calculations?fetch=3&offset=10
 
 	filtered	
 	0	

@@ -3,11 +3,11 @@
     [operator] INT NOT NULL,
     [operand1] FLOAT NOT NULL,
     [operand2] FLOAT NOT NULL,
-    PRIMARY KEY CLUSTERED ([Id] ASC),
+    PRIMARY KEY CLUSTERED ([ID] ASC),
     CONSTRAINT [CK_WebCalc_Operator] CHECK ([operator]>=(1) AND [operator]<=(4))
 );
 
 
 GO
 
-CREATE INDEX [_Id] ON [dbo].[WebCalc] ([Id])
+CREATE INDEX [_Id] ON [dbo].[WebCalc] ([ID])

@@ -13,13 +13,13 @@ using System.Linq;
 
 using static WebCalcDb.Controllers.CalculationsController;
 using Newtonsoft.Json;
-
-
+using System.Threading;
 
 namespace WebCalcDb.Tests
 {
+	//// ¬ообще MS рекомендует переопредел€ть DTO в тестах (NewDto), чтобы зафиксировать тестовую модель данных и исключить ложное согласование  
 	using CGetTestData = CTestData<UnitTests.CGetParamsDtoTest>;
-	using CPostTestData = CTestData<Dto.COperationInputDto>; //// ¬ообще MS рекомендует переопредел€ть DTO в тестах (NewDto), чтобы зафиксировать тестовую модель данных и исключить ложное согласование  
+	using CPostTestData = CTestData<Dto.COperationInputDto>;
 
 	public class CTestData<T>
 	{
@@ -36,9 +36,21 @@ namespace WebCalcDb.Tests
 
 	public class UnitTests: BaseTest
 	{
-		// const string _connection = "Server=(localdb)\\mssqllocaldb;Database=developer;Trusted_Connection=True;MultipleActiveResultSets=true";
+		string _mutexName = string.Format("Global\\{{{0}}}", "003B141A-91B7-412A-9AD9-B5E3A37FF6D4");
+		private static object _syncLock = new object();
+
+		const string _connection = "Server=(localdb)\\mssqllocaldb;Database=developer;Trusted_Connection=True;MultipleActiveResultSets=true";
+
 		private readonly ILogger<UnitTests> _logger;
 		private readonly ILoggerFactory _loggerFactory;
+
+		public class CGetParamsDtoTest
+		{
+			[JsonProperty(PropertyName = "operator")]
+			public EMathOps[] actions; //(int[] actions).Cast<EMathOps>().ToArray();
+			public uint? offset;
+			public uint? fetch;
+		}
 
 		public UnitTests(ITestOutputHelper output)
 			: base(output)
@@ -53,28 +65,7 @@ namespace WebCalcDb.Tests
 			_loggerFactory.AddProvider(new LoggerProvider(this));
 			_logger = _loggerFactory.CreateLogger<UnitTests>();
 		}
-
-		/*/// private void AssertActionResult<T>(T expected, int expectedHttpCode, IActionResult actual) where T : class
-		private void AssertActionResult<T>(T expected, int expectedHttpCode, IActionResult actual) where T : class
-		{
-			Assert.NotNull(actual);
-			Assert.IsType<ObjectResult>(actual);
-
-			var actualResult = actual as ObjectResult;
-			Assert.Equal(expectedHttpCode, actualResult.StatusCode); // 200 OK, 400 Bad Request
-
-			if (null != expected)
-			{
-				Assert.NotNull(actualResult.Value);
-				Assert.IsType<T>(actualResult.Value);
-				T actualData = (actualResult.Value as T);
-				Assert.Equal(JsonConvert.SerializeObject(expected), JsonConvert.SerializeObject(actualData));
-			}
-			_logger.LogInformation($" . . . . . . . . . . . . . . . . . . test passed ({expectedHttpCode}).");
-		}
-		//*///
-
-		private void AssertActionResult2<T>(string expectedJsonStringOfT, int expectedHttpCode, IActionResult actual, Func<T, string> selector = null) where T : class
+		private void AssertActionResult<T>(string expectedJsonStringOfT, int expectedHttpCode, IActionResult actual, Func<T, string> selector = null) where T : class
 		{
 			Assert.NotNull(actual);
 			Assert.IsType<ObjectResult>(actual);
@@ -94,24 +85,17 @@ namespace WebCalcDb.Tests
 			}
 			_logger.LogInformation($" . . . . . . . test passed. HTTP response {actualResult.StatusCode} {(System.Net.HttpStatusCode)actualResult.StatusCode}.");
 		}
-
-
-		[Fact]
-		public void MethodDelete_Success()
+		private CalculationsController BuildController(bool NeedEmptyDB)
 		{
-			// Arrange
-			var repo = new OperationMemRepo("");
-			// var repo = new OperationBdRepo(connection);
+			// var repo = new OperationMemRepo("");
+			var repo = new OperationBdRepo(_connection);
 			var controller = new CalculationsController(repo, _loggerFactory.CreateLogger<CalculationsController>());
+			if (NeedEmptyDB)
+				controller.Delete();
 
-			_logger.LogInformation($"test MethodDelete_Success()");
-
-			// Act
-			var actual = controller.Delete();
-
-			// Assert
-			AssertActionResult2<IActionResult>(null, 202, actual); // 202 Accepted 
+			return controller;
 		}
+
 
 		//// ¬ообще MS рекомендует переопредел€ть DTO в тестах (NewDto), чтобы зафиксировать тестовую модель данных и исключить ложное согласование  
 		//// Ќо мы так делать не будем тк итак очень много DTO
@@ -131,103 +115,11 @@ namespace WebCalcDb.Tests
 		};
 
 
-
-		[Fact]
-		public void MethodPost_Success()
-		{
-			// Arrange
-			_logger.LogInformation($"test MethodPost_Success()");
-			var repo = new OperationMemRepo("");
-			// var repo = new OperationBdRepo(connection);
-			var controller = new CalculationsController(repo, _loggerFactory.CreateLogger<CalculationsController>());
-
-			int i = 0;
-			foreach (var op in TD_MethodPost_Success)
-			{
-				_logger.LogInformation($"TD[{i}] = {JsonConvert.SerializeObject(op)}");
-				i++;
-
-				// Act
-				var actual = controller.Post(op.DtoIn);
-
-				// Assert
-				AssertActionResult2<Dto.CResultDto>(op.expectedData, op.expectedCode, actual); // 200 OK
-			}
-		}
-
-		[Fact]
-		public void MethodPost_Fail()
-		{
-			// Arrange
-			_logger.LogInformation($"test MethodPost_Fail()");
-			var repo = new OperationMemRepo("");
-			// var repo = new OperationBdRepo(connection);
-			var controller = new CalculationsController(repo, _loggerFactory.CreateLogger<CalculationsController>());
-
-			int i = 0;
-			foreach (var op in TD_MethodPost_Fail)
-			{
-				_logger.LogInformation($"TD[{i}] = {JsonConvert.SerializeObject(op)}");
-				i++;
-
-				// Act
-				var actual = controller.Post(op.DtoIn);
-
-				// Assert
-				AssertActionResult2<Dto.CResultDto>(op.expectedData, op.expectedCode, actual); // 400 Bad Request
-			}
-		}
-
-
 		CGetTestData[] TD_MethodGet_EmptyRepo = new CGetTestData[] {
 			new CGetTestData(new CGetParamsDtoTest { offset = null, fetch = null, actions =  new EMathOps[] {} }, 200, null),
 			new CGetTestData(new CGetParamsDtoTest { offset = null, fetch = null, actions =  null }, 200, null),
 		};
 
-		[Fact]
-		public void MethodGet_EmptyRepo()
-		{
-			// Arrange
-			_logger.LogInformation($"test MethodGet_EmptyRepo()");
-			var repo = new OperationMemRepo("");
-			// var repo = new OperationBdRepo(connection);
-			var controller = new CalculationsController(repo, _loggerFactory.CreateLogger<CalculationsController>());
-
-			int i = 0;
-			foreach (var op in TD_MethodGet_EmptyRepo)
-			{
-				_logger.LogInformation($"TD[{i}] = {JsonConvert.SerializeObject(op)}");
-				i++;
-
-				// Act
-				var actual = controller.Get(op.DtoIn.actions, op.DtoIn.offset, op.DtoIn.fetch);
-
-				// Assert
-				AssertActionResult2<Dto.CResultDto>(op.expectedData, op.expectedCode, actual); // 200 OK
-			}
-		}
-
-		/* URLs
-200	http://localhost:14590/calculations
-200	http://localhost:14590/calculations?operator=4
-200	http://localhost:14590/calculations?operator=1&operator=2&operator=3
-206	http://localhost:14590/calculations?fetch=0&offset=0
-206	http://localhost:14590/calculations?fetch=2&offset=0
-206	http://localhost:14590/calculations?fetch=1&offset=2
-206	http://localhost:14590/calculations?operator=1&operator=2&fetch=3&offset=1
-
-400	http://localhost:14590/calculations?operator=Random
-400	http://localhost:14590/calculations?fetch=3&offset=4
-		*/
-
-
-		public class CGetParamsDtoTest
-		{
-			[JsonProperty(PropertyName = "operator")]
-			public EMathOps[] actions; //(int[] actions).Cast<EMathOps>().ToArray();
-			public uint? offset;
-			public uint? fetch;
-		}
 
 		//// MS рекомендует переопредел€ть DTO в тестах (NewDto), чтобы зафиксировать тестовую модель данных и исключить ложное согласование  
 		//// “ут мы именно так и сделаем, хот€ это будут "поддельные" DTO дл€ хранени€ параметров
@@ -235,118 +127,239 @@ namespace WebCalcDb.Tests
 			//	new CGetTestData(new CGetParamsDtoTest { offset = 0, fetch = 0, actions =  new EMathOps[] {(EMathOps)1, (EMathOps)2, (EMathOps)3} }, 200, "[{\"operand1\":3.25,\"operand2\":2.0,\"operator\":1,\"result\":5.25},{\"operand1\":3.25,\"operand2\":2.0,\"operator\":2,\"result\":1.25},{\"operand1\":3.25,\"operand2\":2.0,\"operator\":3,\"result\":6.5}]"),
 			//		1		2		3		4		
 			//	{	5.25,	1.25,	6.5,	1.625	}
-			new CGetTestData(new CGetParamsDtoTest {offset = null, fetch = null, actions =  new EMathOps[] {} }, 200,  JsonConvert.SerializeObject(new double[] {	5.25,	1.25,	6.5,	1.625	}) ), // /calculations
-			new CGetTestData(new CGetParamsDtoTest {offset = null, fetch = 0, actions =  new EMathOps[] {} }, 206,  JsonConvert.SerializeObject(new double[] {	5.25,	1.25,	6.5,	1.625	}) ), // /calculations?fetch=0&offset=0
+			new CGetTestData(new CGetParamsDtoTest {offset = null, fetch = null, actions =  new EMathOps[] {} }, 200,  JsonConvert.SerializeObject(new double[] {   5.25,   1.25,   6.5,    1.625   }) ), // /calculations
+			new CGetTestData(new CGetParamsDtoTest {offset = null, fetch = 0, actions =  new EMathOps[] {} }, 206,  JsonConvert.SerializeObject(new double[] {  5.25,   1.25,   6.5,    1.625   }) ), // /calculations?fetch=0&offset=0
 			new CGetTestData(new CGetParamsDtoTest {offset = null, fetch = null, actions =  new EMathOps[] {(EMathOps)4} }, 200,  JsonConvert.SerializeObject(new double[] {1.625}) ), // /calculations?operator=4
 			new CGetTestData(new CGetParamsDtoTest {offset = null, fetch = null, actions =  new EMathOps[] {(EMathOps)1, (EMathOps)2, (EMathOps)3} }, 200,  JsonConvert.SerializeObject(new double[] {5.25,1.25,6.5 }) ), // /calculations?operator=1&operator=2&operator=3
 
 			new CGetTestData(new CGetParamsDtoTest {offset = 0, fetch = 2, actions =  new EMathOps[] {}  }, 206,  JsonConvert.SerializeObject(new double[] {5.25,1.25 }) ), // /calculations?fetch=2&offset=0
 			new CGetTestData(new CGetParamsDtoTest {offset = 2, fetch = 1, actions =  new EMathOps[] {}  }, 206,  JsonConvert.SerializeObject(new double[] {6.5 }) ), // /calculations?fetch=1&offset=2
-			new CGetTestData(new CGetParamsDtoTest {offset = 1, fetch = 3, actions =  new EMathOps[] {}  }, 206,  JsonConvert.SerializeObject(new double[] {1.25,	6.5,	1.625}) ), // /calculations?fetch=3&offset=1
-			new CGetTestData(new CGetParamsDtoTest {offset = 1, fetch = 4, actions =  new EMathOps[] {}  }, 206,  JsonConvert.SerializeObject(new double[] {1.25,	6.5,	1.625}) ), // /calculations?fetch=4&offset=1 !!!!
+			new CGetTestData(new CGetParamsDtoTest {offset = 1, fetch = 3, actions =  new EMathOps[] {}  }, 206,  JsonConvert.SerializeObject(new double[] {1.25,   6.5,    1.625}) ), // /calculations?fetch=3&offset=1
+			new CGetTestData(new CGetParamsDtoTest {offset = 1, fetch = 4, actions =  new EMathOps[] {}  }, 206,  JsonConvert.SerializeObject(new double[] {1.25,   6.5,    1.625}) ), // /calculations?fetch=4&offset=1 !!!!
 													                    
 			new CGetTestData(new CGetParamsDtoTest {offset = 1, fetch = 3, actions =  new EMathOps[] {(EMathOps)1, (EMathOps)2, (EMathOps)4} }, 206,  JsonConvert.SerializeObject(new double[] {1.25,   1.625}) ), // /calculations?operator=1&operator=2&operator=4&fetch=3&offset=1
 		};
-
-		[Fact]
-		public void MethodGet_Success()
-		{
-			// Arrange
-			_logger.LogInformation($"test MethodGet_Success()");
-			var repo = new OperationMemRepo("");
-			// var repo = new OperationBdRepo(connection);
-			var controller = new CalculationsController(repo, _loggerFactory.CreateLogger<CalculationsController>());
-
-			/*
-						CPostTestData[] TD_MethodGet_Success_Repo = new CPostTestData[TD_MethodPost_Success.Count()*2];
-						TD_MethodPost_Success.CopyTo(TD_MethodGet_Success_Repo,0);
-						TD_MethodPost_Success.CopyTo(TD_MethodGet_Success_Repo, TD_MethodPost_Success.Count());
-			*/
-			int i0 = 0;
-			foreach (var op in TD_MethodPost_Success)
-			{
-				// Arrange
-				var actual = controller.Post(op.DtoIn);
-				int iRet = (actual as ObjectResult).StatusCode.Value;
-				string sCode = $"HTTP response {iRet} {(System.Net.HttpStatusCode)iRet}";
-				string Mes = (200 == iRet) ? (sCode) : ("[[ERROR!]] " + sCode + (System.Net.HttpStatusCode)iRet);
-				_logger.LogInformation($"Arrange[{i0}] = {op.expectedData}, {Mes}");
-				i0++;
-			}
-
-			int i = 0;
-			foreach (var op in TD_MethodGet_Success)
-			{
-				// Arrange
-				_logger.LogInformation($"TD[{i}] = {JsonConvert.SerializeObject(op)}");
-				i++;
-
-				// Act
-				var actual = controller.Get(op.DtoIn.actions, op.DtoIn.offset, op.DtoIn.fetch);
-
-				// Assert
-				AssertActionResult2<Dto.COperationOutputDto[]>(op.expectedData, op.expectedCode, actual, arr => {
-					return JsonConvert.SerializeObject(arr.Select(item => item.result).ToArray());
-				});  // 200 || 206
-			}
-		}
 
 
 		//// MS рекомендует переопредел€ть DTO в тестах (NewDto), чтобы зафиксировать тестовую модель данных и исключить ложное согласование  
 		//// “ут мы именно так и сделаем, хот€ это будут "поддельные" DTO дл€ хранени€ параметров
 		CGetTestData[] TD_MethodGet_Fail = new CGetTestData[] {
-			//	new CGetTestData(new CGetParamsDtoTest { offset = 0, fetch = 0, actions =  new EMathOps[] {(EMathOps)1, (EMathOps)2, (EMathOps)3} }, 200, "[{\"operand1\":3.25,\"operand2\":2.0,\"operator\":1,\"result\":5.25},{\"operand1\":3.25,\"operand2\":2.0,\"operator\":2,\"result\":1.25},{\"operand1\":3.25,\"operand2\":2.0,\"operator\":3,\"result\":6.5}]"),
-			//		1		2		3		4		
-			//	{	5.25,	1.25,	6.5,	1.625	}
 			new CGetTestData(new CGetParamsDtoTest {offset = 3, fetch = 3, actions =  new EMathOps[] {(EMathOps)1, (EMathOps)2, (EMathOps)4} }, 400,  null ), // /calculations?operator=1&operator=2&operator=4&fetch=3&offset=1
 		};
+
+
+		[Fact]
+		public void MethodDelete_Success()
+		{
+			lock (_syncLock)
+			{
+				// Arrange
+				_logger.LogInformation($"test MethodDelete_Success()");
+				CalculationsController controller = BuildController(false);
+
+				// Act
+				var actual = controller.Delete();
+
+				// Assert
+				AssertActionResult<IActionResult>(null, 202, actual); // 202 Accepted 
+			}
+		}
+
+
+		[Fact]
+		public void MethodPost_Success()
+		{
+			lock (_syncLock)
+			{
+				// Arrange
+				_logger.LogInformation($"test MethodPost_Success()");
+				CalculationsController controller = BuildController(false);
+
+				try
+				{
+					int i = 0;
+					foreach (var op in TD_MethodPost_Success)
+					{
+						_logger.LogInformation($"TD[{i}] = {JsonConvert.SerializeObject(op)}");
+						i++;
+
+						// Act
+						var actual = controller.Post(op.DtoIn);
+
+						// Assert
+						AssertActionResult<Dto.CResultDto>(op.expectedData, op.expectedCode, actual); // 200 OK
+					}
+				}
+				finally
+				{
+					var actual = controller.Delete();
+				}
+			}
+		}
+
+		[Fact]
+		public void MethodPost_Fail()
+		{
+			lock (_syncLock)
+			{
+				// Arrange
+				_logger.LogInformation($"test MethodPost_Fail()");
+				CalculationsController controller = BuildController(false);
+
+				try
+				{
+					int i = 0;
+					foreach (var op in TD_MethodPost_Fail)
+					{
+						_logger.LogInformation($"TD[{i}] = {JsonConvert.SerializeObject(op)}");
+						i++;
+
+						// Act
+						var actual = controller.Post(op.DtoIn);
+
+						// Assert
+						AssertActionResult<Dto.CResultDto>(op.expectedData, op.expectedCode, actual); // 400 Bad Request
+					}
+				}
+				finally
+				{
+					var actual = controller.Delete();
+				}
+			}
+		}
+
+		[Fact]
+		public void MethodGet_EmptyRepo()
+		{
+			lock (_syncLock)
+			{
+				// Arrange
+				_logger.LogInformation($"test MethodGet_EmptyRepo()");
+				CalculationsController controller = BuildController(true);
+
+				int i = 0;
+				foreach (var op in TD_MethodGet_EmptyRepo)
+				{
+					_logger.LogInformation($"TD[{i}] = {JsonConvert.SerializeObject(op)}");
+					i++;
+
+					// Act
+					var actual = controller.Get(op.DtoIn.actions, op.DtoIn.offset, op.DtoIn.fetch);
+
+					// Assert
+					AssertActionResult<Dto.CResultDto>(op.expectedData, op.expectedCode, actual); // 200 OK
+				}
+			}
+		}
+
+		[Fact]
+		public void MethodGet_Success()
+		{
+			lock (_syncLock)
+			{
+				// Arrange
+				_logger.LogInformation($"test MethodGet_Success()");
+				CalculationsController controller = BuildController(true);
+
+				try
+				{
+					/*
+								CPostTestData[] TD_MethodGet_Success_Repo = new CPostTestData[TD_MethodPost_Success.Count()*2];
+								TD_MethodPost_Success.CopyTo(TD_MethodGet_Success_Repo,0);
+								TD_MethodPost_Success.CopyTo(TD_MethodGet_Success_Repo, TD_MethodPost_Success.Count());
+					*/
+					int i0 = 0;
+					foreach (var op in TD_MethodPost_Success)
+					{
+						// Arrange
+						var actual = controller.Post(op.DtoIn);
+						int iRet = (actual as ObjectResult).StatusCode.Value;
+						string sCode = $"HTTP response {iRet} {(System.Net.HttpStatusCode)iRet}";
+						string Mes = (200 == iRet) ? (sCode) : ("[[ERROR!]] " + sCode + (System.Net.HttpStatusCode)iRet);
+						_logger.LogInformation($"Arrange[{i0}] = {op.expectedData}, {Mes}");
+						i0++;
+					}
+
+					int i = 0;
+					foreach (var op in TD_MethodGet_Success)
+					{
+						// Arrange
+						_logger.LogInformation($"TD[{i}] = {JsonConvert.SerializeObject(op)}");
+						i++;
+
+						// Act
+						var actual = controller.Get(op.DtoIn.actions, op.DtoIn.offset, op.DtoIn.fetch);
+
+						// Assert
+						AssertActionResult<Dto.COperationOutputDto[]>(op.expectedData, op.expectedCode, actual, arr =>
+						{
+							return JsonConvert.SerializeObject(arr.Select(item => item.result).ToArray());
+						});  // 200 || 206
+					}
+				}
+				finally
+				{
+					var actual = controller.Delete();
+				}
+			}
+		}
+
 
 		[Fact]
 		public void MethodGet_Fail()
 		{
-			// Arrange
-			_logger.LogInformation($"test MethodGet_Fail()");
-			var repo = new OperationMemRepo("");
-			// var repo = new OperationBdRepo(connection);
-			var controller = new CalculationsController(repo, _loggerFactory.CreateLogger<CalculationsController>());
-
-			/*
-						CPostTestData[] TD_MethodGet_Success_Repo = new CPostTestData[TD_MethodPost_Success.Count()*2];
-						TD_MethodPost_Success.CopyTo(TD_MethodGet_Success_Repo,0);
-						TD_MethodPost_Success.CopyTo(TD_MethodGet_Success_Repo, TD_MethodPost_Success.Count());
-			*/
-			int i0 = 0;
-			foreach (var op in TD_MethodPost_Success)
+			lock (_syncLock)
 			{
 				// Arrange
-				var actual = controller.Post(op.DtoIn);
-				int iRet = (actual as ObjectResult).StatusCode.Value;
-				string sCode = $"HTTP response {iRet} {(System.Net.HttpStatusCode)iRet}";
-				string Mes = (200 == iRet) ? (sCode) : ("[[ERROR!]] " + sCode + (System.Net.HttpStatusCode)iRet);
-				_logger.LogInformation($"Arrange[{i0}] = {op.expectedData}, {Mes}");
-				i0++;
-			}
+				_logger.LogInformation($"test MethodGet_Fail()");
+				CalculationsController controller = BuildController(true);
 
-			int i = 0;
-			foreach (var op in TD_MethodGet_Fail)
-			{
-				// Arrange
-				_logger.LogInformation($"TD[{i}] = {JsonConvert.SerializeObject(op)}");
-				i++;
+				try
+				{
+					/*
+								CPostTestData[] TD_MethodGet_Success_Repo = new CPostTestData[TD_MethodPost_Success.Count()*2];
+								TD_MethodPost_Success.CopyTo(TD_MethodGet_Success_Repo,0);
+								TD_MethodPost_Success.CopyTo(TD_MethodGet_Success_Repo, TD_MethodPost_Success.Count());
+					*/
+					int i0 = 0;
+					foreach (var op in TD_MethodPost_Success)
+					{
+						// Arrange
+						var actual = controller.Post(op.DtoIn);
+						int iRet = (actual as ObjectResult).StatusCode.Value;
+						string sCode = $"HTTP response {iRet} {(System.Net.HttpStatusCode)iRet}";
+						string Mes = (200 == iRet) ? (sCode) : ("[[ERROR!]] " + sCode + (System.Net.HttpStatusCode)iRet);
+						_logger.LogInformation($"Arrange[{i0}] = {op.expectedData}, {Mes}");
+						i0++;
+					}
 
-				// Act
-				var actual = controller.Get(op.DtoIn.actions, op.DtoIn.offset, op.DtoIn.fetch);
+					int i = 0;
+					foreach (var op in TD_MethodGet_Fail)
+					{
+						// Arrange
+						_logger.LogInformation($"TD[{i}] = {JsonConvert.SerializeObject(op)}");
+						i++;
 
-				// Assert
-				AssertActionResult2<Dto.COperationOutputDto[]>(op.expectedData, op.expectedCode, actual, arr => {
-					return JsonConvert.SerializeObject(arr.Select(item => item.result).ToArray());
-				});  // 400
+						// Act
+						var actual = controller.Get(op.DtoIn.actions, op.DtoIn.offset, op.DtoIn.fetch);
+
+						// Assert
+						AssertActionResult<Dto.COperationOutputDto[]>(op.expectedData, op.expectedCode, actual, arr =>
+						{
+							return JsonConvert.SerializeObject(arr.Select(item => item.result).ToArray());
+						});  // 400
+					}
+				}
+				finally
+				{
+					var actual = controller.Delete();
+				}
 			}
 		}
 
-		///*
 		//// How to write output from a unit test? https://stackoverflow.com/questions/4786884/how-to-write-output-from-a-unit-test/49767548#49767548
 		//// Unit Test code called supresses Debug.WriteLine and Trace.WriteLine https://stackoverflow.com/questions/9642171/unit-test-code-called-supresses-debug-writeline-and-trace-writeline
+		/*///
 		[Fact]
 		public void CheckConsoleOutput()
 		{
@@ -361,33 +374,8 @@ namespace WebCalcDb.Tests
 			Assert.IsType<bool>(true);
 			_logger.LogInformation($"          test passed.");
 		}
-		//*/
+		//*///
 	}
 
-	/*
-	public class PrimeWebDefaultRequestShould
-	{
-		private readonly TestServer _server;
-		private readonly HttpClient _client;
 
-		public PrimeWebDefaultRequestShould()
-		{
-			// Arrange
-			_server = new TestServer(new WebHostBuilder()
-			   .UseStartup<Startup>());
-			_client = _server.CreateClient();
-		}
-
-		[Fact]
-		public async Task ReturnHelloWorld()
-		{
-			// Act
-			var response = await _client.GetAsync("/");
-			response.EnsureSuccessStatusCode();
-			var responseString = await response.Content.ReadAsStringAsync();
-			// Assert
-			Assert.Equal("Hello World!", responseString);
-		}
-	}
-	//*/
 }

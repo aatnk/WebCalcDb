@@ -43,7 +43,7 @@ namespace WebCalcDb.Tests.IntegrationTests
 				.ConfigureAppConfiguration((hostContext, configApp) => // https://docs.microsoft.com/en-us/aspnet/core/fundamentals/host/generic-host?view=aspnetcore-2.1#configureappconfiguration
 				{
 					//TODO: сделать тут хорошо и надёжно определять пути к "appsettings*.json"
-					//TODO: скйчас сделано через копирование "appsettings.json" при компиляции (свойства файла проекта), но почему-то не во всех случаях работает
+					//TODO: сейчас сделано через копирование "appsettings.json" при компиляции (свойства файла проекта), но почему-то не во всех случаях работает
 
 					configApp.SetBasePath(Directory.GetCurrentDirectory());
 					configApp.AddJsonFile("appsettings.json", optional: true); //  "appsettings.json"

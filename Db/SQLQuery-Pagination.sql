@@ -1,0 +1,1 @@
+﻿SELECT * FROM [dbo].[WebCalc]  WHERE [operator] IN (1,2,4) ORDER BY [ID] ASC OFFSET 1 ROWS FETCH NEXT (10) ROWS ONLY

@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
+using WebCalcDb.Models;
 
 namespace WebCalcDb.Controllers
 {
@@ -180,7 +181,8 @@ namespace WebCalcDb.Controllers
 		{
 			try
 			{
-				actions = (null == actions ) ? ( new EMathOps[] { } ) : actions;
+				int iHttpCode = (offset.HasValue || fetch.HasValue) ? 206 : 200; // (Partial content) : (OK)
+				actions = (null == actions) ? (new EMathOps[] { }) : actions;
 
 				#region //TODO: DelDebCode
 				s_uCounter++;
@@ -207,24 +209,16 @@ namespace WebCalcDb.Controllers
 				}
 				#endregion
 
-				int iHttpCode = (offset.HasValue || fetch.HasValue) ? 206 : 200; // (Partial content) : (OK)
-
-				if (_oRepo.Count() <= 0)
-					return StatusCode(null, iHttpCode, "GET - " + "empty repository");
-
-				IEnumerable<COperation> src = _oRepo.GetAll();
-				IEnumerable<COperation> filtered = (actions.Length == 0) ? (src) : (src.Where<COperation>(p => -1 != Array.IndexOf<EMathOps>(actions, p.action)));
 				if (!offset.HasValue)
 					offset = new uint?(0);
 				if (!fetch.HasValue)
 					fetch = new uint?(0); // if (fetch==0) parce to end 
-				if (offset.Value >= filtered.Count())
-					return StatusCode(null, 400, "GET - " + $"offset too lage, offset={offset.Value} more than {filtered.Count()} ({s_DbgMsg})");
 
-				if (0 == fetch.Value || (offset.Value + fetch.Value - 1) > (uint)(filtered.Count()))
-					fetch = new uint?((uint)(filtered.Count()) - offset.Value); // Устанавливаем диапазон в конец
-
-				filtered = filtered.Skip((int)offset.Value).Take((int)fetch.Value);
+				// --------------------------------------
+				var filtered = _oRepo.GetPage(actions, offset.Value, fetch.Value, true);
+				if (null== filtered || 0==filtered.Count())
+					return StatusCode(null, 204, "GET - " + $" no content or offset too lage, offset={offset.Value} - ({s_DbgMsg})");
+				// --------------------------------------
 
 				// https://docs.microsoft.com/ru-ru/aspnet/core/mvc/controllers/testing?view=aspnetcore-2.1
 				var result = filtered.Select(item => new Dto.COperationOutputDto()
@@ -243,7 +237,79 @@ namespace WebCalcDb.Controllers
 			}
 		}
 
+/*///
+		public IActionResult GetOld([Bind(Prefix = "operator")] EMathOps[] actions, uint? offset, uint? fetch)
+		{
+			try
+			{
+				actions = (null == actions) ? (new EMathOps[] { }) : actions;
+				int iHttpCode = (offset.HasValue || fetch.HasValue) ? 206 : 200; // (Partial content) : (OK)
+				if (_oRepo.Count() <= 0)
+					return StatusCode(null, iHttpCode, "GET - " + "empty repository");
 
+
+				#region //TODO: DelDebCode
+				s_uCounter++;
+				m_uCounter++;
+				var s_DbgMsg = "";
+				s_DbgMsg += s_uCounter + ":" + m_uCounter;
+
+				s_DbgMsg += ("; op=" + actions.Length);
+
+				uint op_item_counter = 0;
+				foreach (var op_item in actions)
+				{
+					s_DbgMsg += ("; op[" + op_item_counter + "]=" + op_item);
+					op_item_counter++;
+				}
+
+				if (offset.HasValue || fetch.HasValue)
+				{
+					s_DbgMsg += offset.HasValue ? ("; offset=" + offset.Value.ToString()) : "";
+					if (!offset.HasValue) s_DbgMsg += "; (offset skipped)";
+
+					s_DbgMsg += fetch.HasValue ? ("; fetch=" + fetch.Value.ToString()) : "";
+					if (!fetch.HasValue) s_DbgMsg += "; (fetch skipped)";
+				}
+				#endregion
+
+				if (!offset.HasValue)
+					offset = new uint?(0);
+				if (!fetch.HasValue)
+					fetch = new uint?(0); // if (fetch==0) parce to end 
+
+				// --------------------------------------
+
+				IEnumerable<COperation> src = _oRepo.GetAll();
+				IEnumerable<COperation> filtered = (actions.Length == 0) ? (src) : (src.Where<COperation>(p => -1 != Array.IndexOf<EMathOps>(actions, p.action)));
+				if (offset.Value >= filtered.Count())
+					return StatusCode(null, 400, "GET - " + $"offset too lage, offset={offset.Value} more than {filtered.Count()} ({s_DbgMsg})");
+
+				if (0 == fetch.Value || (offset.Value + fetch.Value - 1) > (uint)(filtered.Count()))
+					fetch = new uint?((uint)(filtered.Count()) - offset.Value); // Устанавливаем диапазон в конец
+
+				filtered = filtered.Skip((int)offset.Value).Take((int)fetch.Value);
+
+				// --------------------------------------
+
+				// https://docs.microsoft.com/ru-ru/aspnet/core/mvc/controllers/testing?view=aspnetcore-2.1
+				var result = filtered.Select(item => new Dto.COperationOutputDto()
+				{
+					action = item.action,
+					operand1 = item.operand1,
+					operand2 = item.operand2,
+					result = item.result
+				}).ToArray();
+
+				return StatusCode(result, iHttpCode, "GET - " + s_DbgMsg);
+			}
+			catch (Exception ex)
+			{
+				return StatusCode(null, 500, "GET fail with exception", ex);
+			}
+		}
+
+//*///
 
 		/* https://stackoverflow.com/questions/36280947/how-to-pass-multiple-parameters-to-a-get-method-in-asp-net-core
 		Why not using just one controller action?

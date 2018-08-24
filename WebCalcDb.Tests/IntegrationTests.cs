@@ -24,6 +24,7 @@ using static WebCalcDb.Controllers.CalculationsController;
 using Xunit.Loging;
 using Xunit.Abstractions;
 using Microsoft.Extensions.Logging;
+using WebCalcDb.Models;
 //// Тестирование логики контроллера в ASP.NET Core - Тестирование интеграции
 //// aspnetcore-2.1 https://docs.microsoft.com/ru-ru/aspnet/core/mvc/controllers/testing?view=aspnetcore-2.1#integration-testing
 //// aspnetcore-2.0 https://docs.microsoft.com/ru-ru/aspnet/core/mvc/controllers/testing?view=aspnetcore-2.0#integration-testing

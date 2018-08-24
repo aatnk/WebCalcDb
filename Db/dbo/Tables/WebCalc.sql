@@ -11,3 +11,7 @@
 GO
 
 CREATE INDEX [_Id] ON [dbo].[WebCalc] ([ID])
+
+GO
+
+CREATE INDEX [_Operator_Id] ON [dbo].[WebCalc] ([operator], [ID])

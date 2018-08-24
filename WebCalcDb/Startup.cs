@@ -26,7 +26,7 @@ namespace WebCalcDb
 		public IConfiguration Configuration { get; }
 
 		// This method gets called by the runtime. Use this method to add services to the container.
-		public void ConfigureServices(IServiceCollection services)
+		public void ConfigureServices(IServiceCollection services)//, ILoggerFactory loggerFactory)
 		{
 
 			string connection = Configuration.GetConnectionString("localdb");
@@ -64,8 +64,10 @@ namespace WebCalcDb
 			//// Dependency Injection - Передача зависимостей https://metanit.com/sharp/aspnet5/6.4.php
 
 
-			//			services.AddSingleton<IOperationRepo>(new OperationMemRepo(connection));
-			services.AddSingleton<IOperationRepo>(new OperationBdRepo(connection));
+			//services.AddSingleton<IOperationRepo>(new OperationMemRepo(connection)); //, loggerFactory.CreateLogger<Models.IOperationRepo>());
+			services.AddSingleton<Models.IOperationRepo>(new Models.OperationBdRepo(connection)); //, loggerFactory.CreateLogger<Models.OperationBdRepo>() ));
+
+			
 			//// ИСПОЛЬЗОВАНИЕ: Singleton-объекты и scoped-сервисы
 			//// https://docs.microsoft.com/ru-ru/aspnet/core/fundamentals/dependency-injection?view=aspnetcore-2.0
 

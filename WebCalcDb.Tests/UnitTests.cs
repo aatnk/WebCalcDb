@@ -14,6 +14,7 @@ using System.Linq;
 using static WebCalcDb.Controllers.CalculationsController;
 using Newtonsoft.Json;
 using System.Threading;
+using WebCalcDb.Models;
 
 namespace WebCalcDb.Tests
 {
@@ -36,10 +37,10 @@ namespace WebCalcDb.Tests
 
 	public class UnitTests: BaseTest
 	{
-		string _mutexName = string.Format("Global\\{{{0}}}", "003B141A-91B7-412A-9AD9-B5E3A37FF6D4");
 		private static object _syncLock = new object();
 
 		const string _connection = "Server=(localdb)\\mssqllocaldb;Database=developer;Trusted_Connection=True;MultipleActiveResultSets=true";
+		const bool _inmemoryTable = false;
 
 		private readonly ILogger<UnitTests> _logger;
 		private readonly ILoggerFactory _loggerFactory;
@@ -65,13 +66,30 @@ namespace WebCalcDb.Tests
 			_loggerFactory.AddProvider(new LoggerProvider(this));
 			_logger = _loggerFactory.CreateLogger<UnitTests>();
 		}
+
+		private CalculationsController BuildController(bool NeedEmptyDB)
+		{
+			IOperationRepo repo;
+			if (_inmemoryTable)
+				repo = new OperationMemRepo("", _loggerFactory.CreateLogger<OperationMemRepo>());
+			else
+				repo = new OperationBdRepo(_connection, _loggerFactory.CreateLogger<OperationBdRepo>());
+
+			CalculationsController controller = new CalculationsController(repo, _loggerFactory.CreateLogger<CalculationsController>());
+
+			if (NeedEmptyDB)
+				controller.Delete();
+
+			return controller;
+		}
+
 		private void AssertActionResult<T>(string expectedJsonStringOfT, int expectedHttpCode, IActionResult actual, Func<T, string> selector = null) where T : class
 		{
 			Assert.NotNull(actual);
 			Assert.IsType<ObjectResult>(actual);
 
 			var actualResult = actual as ObjectResult;
-			Assert.Equal(expectedHttpCode, actualResult.StatusCode); // 200 OK, 400 Bad Request
+			Assert.Equal(expectedHttpCode, actualResult.StatusCode); 
 
 			if (null != expectedJsonStringOfT)
 			{
@@ -84,16 +102,6 @@ namespace WebCalcDb.Tests
 				Assert.Equal(expectedJsonStringOfT, actualString);
 			}
 			_logger.LogInformation($" . . . . . . . test passed. HTTP response {actualResult.StatusCode} {(System.Net.HttpStatusCode)actualResult.StatusCode}.");
-		}
-		private CalculationsController BuildController(bool NeedEmptyDB)
-		{
-			// var repo = new OperationMemRepo("");
-			var repo = new OperationBdRepo(_connection);
-			var controller = new CalculationsController(repo, _loggerFactory.CreateLogger<CalculationsController>());
-			if (NeedEmptyDB)
-				controller.Delete();
-
-			return controller;
 		}
 
 
@@ -116,8 +124,8 @@ namespace WebCalcDb.Tests
 
 
 		CGetTestData[] TD_MethodGet_EmptyRepo = new CGetTestData[] {
-			new CGetTestData(new CGetParamsDtoTest { offset = null, fetch = null, actions =  new EMathOps[] {} }, 200, null),
-			new CGetTestData(new CGetParamsDtoTest { offset = null, fetch = null, actions =  null }, 200, null),
+			new CGetTestData(new CGetParamsDtoTest { offset = null, fetch = null, actions =  new EMathOps[] {} }, 204, null),
+			new CGetTestData(new CGetParamsDtoTest { offset = null, fetch = null, actions =  null }, 204, null),
 		};
 
 
@@ -127,24 +135,24 @@ namespace WebCalcDb.Tests
 			//	new CGetTestData(new CGetParamsDtoTest { offset = 0, fetch = 0, actions =  new EMathOps[] {(EMathOps)1, (EMathOps)2, (EMathOps)3} }, 200, "[{\"operand1\":3.25,\"operand2\":2.0,\"operator\":1,\"result\":5.25},{\"operand1\":3.25,\"operand2\":2.0,\"operator\":2,\"result\":1.25},{\"operand1\":3.25,\"operand2\":2.0,\"operator\":3,\"result\":6.5}]"),
 			//		1		2		3		4		
 			//	{	5.25,	1.25,	6.5,	1.625	}
-			new CGetTestData(new CGetParamsDtoTest {offset = null, fetch = null, actions =  new EMathOps[] {} }, 200,  JsonConvert.SerializeObject(new double[] {   5.25,   1.25,   6.5,    1.625   }) ), // /calculations
-			new CGetTestData(new CGetParamsDtoTest {offset = null, fetch = 0, actions =  new EMathOps[] {} }, 206,  JsonConvert.SerializeObject(new double[] {  5.25,   1.25,   6.5,    1.625   }) ), // /calculations?fetch=0&offset=0
-			new CGetTestData(new CGetParamsDtoTest {offset = null, fetch = null, actions =  new EMathOps[] {(EMathOps)4} }, 200,  JsonConvert.SerializeObject(new double[] {1.625}) ), // /calculations?operator=4
-			new CGetTestData(new CGetParamsDtoTest {offset = null, fetch = null, actions =  new EMathOps[] {(EMathOps)1, (EMathOps)2, (EMathOps)3} }, 200,  JsonConvert.SerializeObject(new double[] {5.25,1.25,6.5 }) ), // /calculations?operator=1&operator=2&operator=3
+			new CGetTestData(new CGetParamsDtoTest {offset = null, fetch = null, actions =  new EMathOps[] {} }, 200,  JsonConvert.SerializeObject(new double[] { 1.625, 6.5, 1.25, 5.25 } ) ), // /calculations
+			new CGetTestData(new CGetParamsDtoTest {offset = null, fetch = 0, actions =  new EMathOps[] {} }, 206,  JsonConvert.SerializeObject(new double[] { 1.625, 6.5, 1.25, 5.25 } ) ), // /calculations?fetch=0&offset=0
+			new CGetTestData(new CGetParamsDtoTest {offset = null, fetch = null, actions =  new EMathOps[] {(EMathOps)4} }, 200,  JsonConvert.SerializeObject(new double[] {1.625} ) ), // /calculations?operator=4
+			new CGetTestData(new CGetParamsDtoTest {offset = null, fetch = null, actions =  new EMathOps[] {(EMathOps)1, (EMathOps)2, (EMathOps)3} }, 200,  JsonConvert.SerializeObject(new double[] { 6.5, 1.25, 5.25 } ) ), // /calculations?operator=1&operator=2&operator=3
 
-			new CGetTestData(new CGetParamsDtoTest {offset = 0, fetch = 2, actions =  new EMathOps[] {}  }, 206,  JsonConvert.SerializeObject(new double[] {5.25,1.25 }) ), // /calculations?fetch=2&offset=0
-			new CGetTestData(new CGetParamsDtoTest {offset = 2, fetch = 1, actions =  new EMathOps[] {}  }, 206,  JsonConvert.SerializeObject(new double[] {6.5 }) ), // /calculations?fetch=1&offset=2
-			new CGetTestData(new CGetParamsDtoTest {offset = 1, fetch = 3, actions =  new EMathOps[] {}  }, 206,  JsonConvert.SerializeObject(new double[] {1.25,   6.5,    1.625}) ), // /calculations?fetch=3&offset=1
-			new CGetTestData(new CGetParamsDtoTest {offset = 1, fetch = 4, actions =  new EMathOps[] {}  }, 206,  JsonConvert.SerializeObject(new double[] {1.25,   6.5,    1.625}) ), // /calculations?fetch=4&offset=1 !!!!
+			new CGetTestData(new CGetParamsDtoTest {offset = 0, fetch = 2, actions =  new EMathOps[] {}  }, 206,  JsonConvert.SerializeObject(new double[] { 1.625, 6.5 } ) ), // /calculations?fetch=2&offset=0
+			new CGetTestData(new CGetParamsDtoTest {offset = 2, fetch = 1, actions =  new EMathOps[] {}  }, 206,  JsonConvert.SerializeObject(new double[] { 1.25 } ) ), // /calculations?fetch=1&offset=2
+			new CGetTestData(new CGetParamsDtoTest {offset = 1, fetch = 3, actions =  new EMathOps[] {}  }, 206,  JsonConvert.SerializeObject(new double[] { 6.5, 1.25, 5.25 } ) ), // /calculations?fetch=3&offset=1
+			new CGetTestData(new CGetParamsDtoTest {offset = 1, fetch = 4, actions =  new EMathOps[] {}  }, 206,  JsonConvert.SerializeObject(new double[] { 6.5, 1.25, 5.25 } ) ), // /calculations?fetch=4&offset=1 !!!!
 													                    
-			new CGetTestData(new CGetParamsDtoTest {offset = 1, fetch = 3, actions =  new EMathOps[] {(EMathOps)1, (EMathOps)2, (EMathOps)4} }, 206,  JsonConvert.SerializeObject(new double[] {1.25,   1.625}) ), // /calculations?operator=1&operator=2&operator=4&fetch=3&offset=1
+			new CGetTestData(new CGetParamsDtoTest {offset = 1, fetch = 3, actions =  new EMathOps[] {(EMathOps)1, (EMathOps)3, (EMathOps)4} }, 206,  JsonConvert.SerializeObject(new double[] { 6.5, 5.25 } ) ), // /calculations?operator=1&operator=3&operator=4&fetch=3&offset=1
 		};
 
 
 		//// MS рекомендует переопределять DTO в тестах (NewDto), чтобы зафиксировать тестовую модель данных и исключить ложное согласование  
 		//// Тут мы именно так и сделаем, хотя это будут "поддельные" DTO для хранения параметров
 		CGetTestData[] TD_MethodGet_Fail = new CGetTestData[] {
-			new CGetTestData(new CGetParamsDtoTest {offset = 3, fetch = 3, actions =  new EMathOps[] {(EMathOps)1, (EMathOps)2, (EMathOps)4} }, 400,  null ), // /calculations?operator=1&operator=2&operator=4&fetch=3&offset=1
+			new CGetTestData(new CGetParamsDtoTest {offset = 3, fetch = 3, actions =  new EMathOps[] {(EMathOps)1, (EMathOps)2, (EMathOps)4} }, 204,  null ), // /calculations?operator=1&operator=2&operator=4&fetch=3&offset=1
 		};
 
 
@@ -228,6 +236,7 @@ namespace WebCalcDb.Tests
 			}
 		}
 
+
 		[Fact]
 		public void MethodGet_EmptyRepo()
 		{
@@ -303,7 +312,6 @@ namespace WebCalcDb.Tests
 				}
 			}
 		}
-
 
 		[Fact]
 		public void MethodGet_Fail()
